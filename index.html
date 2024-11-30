@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF Text Editor</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin: 0;
+      height: 100vh;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.3));
+      backdrop-filter: blur(10px);
+      color: #333;
+    }
+    .container {
+      max-width: 500px;
+      width: 90%;
+      background: rgba(255, 255, 255, 0.3);
+      padding: 20px;
+      border-radius: 15px;
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    h1 {
+      text-align: center;
+      font-size: 24px;
+      margin-bottom: 20px;
+    }
+    input, button {
+      width: 100%;
+      margin: 10px 0;
+      padding: 10px;
+      font-size: 16px;
+      border: none;
+      border-radius: 10px;
+    }
+    button {
+      cursor: pointer;
+      background: #6200ea;
+      color: white;
+      font-weight: bold;
+    }
+    .pair {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .pair input {
+      flex: 1;
+    }
+    #replaceList {
+      margin-top: 10px;
+    }
+    a {
+      text-decoration: none;
+      color: #6200ea;
+      font-weight: bold;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>Glassmorphic PDF Text Editor</h1>
+    <input type="file" id="pdfFile" accept="application/pdf">
+    <div id="replaceList"></div>
+    <button id="addPair">Add Search & Replace Pair</button>
+    <button id="processPdf">Replace Text</button>
+    <br>
+    <a id="downloadLink" style="display: none;">Download Modified PDF</a>
+  </div>
+
+  <script>
+    const replaceList = document.getElementById('replaceList');
+    const addPairButton = document.getElementById('addPair');
+    const processPdfButton = document.getElementById('processPdf');
+    const downloadLink = document.getElementById('downloadLink');
+
+    function createReplacePair() {
+      const div = document.createElement('div');
+      div.className = 'pair';
+      div.innerHTML = `
+        <input type="text" placeholder="Text to search" class="searchText">
+        <input type="text" placeholder="Replacement text" class="replaceText">
+      `;
+      replaceList.appendChild(div);
+    }
+
+    addPairButton.addEventListener('click', createReplacePair);
+
+    processPdfButton.addEventListener('click', async () => {
+      const fileInput = document.getElementById('pdfFile');
+      if (!fileInput.files.length) {
+        alert('Please upload a PDF file.');
+        return;
+      }
+
+      const searchReplacePairs = Array.from(replaceList.children).map(pair => ({
+        search: pair.querySelector('.searchText').value,
+        replace: pair.querySelector('.replaceText').value
+      })).filter(pair => pair.search && pair.replace);
+
+      if (!searchReplacePairs.length) {
+        alert('Please add at least one search-and-replace pair.');
+        return;
+      }
+
+      const file = fileInput.files[0];
+      const arrayBuffer = await file.arrayBuffer();
+      const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+
+      const pages = pdfDoc.getPages();
+      pages.forEach(page => {
+        const { width, height } = page.getSize();
+        const textItems = page.getTextContentSync(); // Placeholder for actual text fetch logic
+
+        textItems.items.forEach(item => {
+          searchReplacePairs.forEach(pair => {
+            if (item.str.includes(pair.search)) {
+              const newText = item.str.replace(pair.search, pair.replace);
+              page.drawText(newText, {
+                x: item.transform[4],
+                y: height - item.transform[5],
+                size: item.height,
+                font: item.fontName,
+                color: page.getTextColor()
+              });
+            }
+          });
+        });
+      });
+
+      const modifiedPdfBytes = await pdfDoc.save();
+      const blob = new Blob([modifiedPdfBytes], { type: 'application/pdf' });
+      downloadLink.href = URL.createObjectURL(blob);
+      downloadLink.download = 'modified.pdf';
+      downloadLink.style.display = 'inline';
+      downloadLink.textContent = 'Download Modified PDF';
+    });
+
+    // Create one default pair on load
+    createReplacePair();
+  </script>
+</body>
+</html>
